@@ -24,6 +24,22 @@ def load_fixtures():
         return json.load(handle)
 
 
+def input_from_vector(vector):
+    if "input_codepoints" in vector:
+        return "".join(chr(codepoint) for codepoint in vector["input_codepoints"])
+    return vector["input"]
+
+
+def contains_surrogate(value):
+    if isinstance(value, str):
+        return any(0xD800 <= ord(character) <= 0xDFFF for character in value)
+    if isinstance(value, list):
+        return any(contains_surrogate(item) for item in value)
+    if isinstance(value, dict):
+        return any(contains_surrogate(item) for item in value.values())
+    return False
+
+
 def test_process_and_error_vectors_match_the_portable_contract():
     fixtures = load_fixtures()
     error_types = {
@@ -33,17 +49,19 @@ def test_process_and_error_vectors_match_the_portable_contract():
 
     assert fixtures["schema_version"] == 1
     assert "Unicode scalar" in fixtures["unicode_representation"]
+    assert not contains_surrogate(fixtures)
 
     for vector in fixtures["cases"]:
         config = PassTextConfig(**vector["config"])
+        password = input_from_vector(vector)
         if vector["operation"] == "process_error":
             expected_error = error_types[vector["expected_error"]]
             with pytest.raises(expected_error):
-                process_password(vector["input"], config=config)
+                process_password(password, config=config)
             continue
 
         assert vector["operation"] == "process"
-        result = process_password(vector["input"], config=config)
+        result = process_password(password, config=config)
         assert result.processed_text == vector["expected"]["processed_text"]
         metadata = result.metadata.as_dict()
         for key, expected_value in vector["expected"].items():

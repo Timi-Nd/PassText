@@ -8,7 +8,8 @@ The Python implementation is the behavioral reference for a future Rust port. Th
 
 - Accept only Python `str`/Rust `&str` equivalents.
 - Empty strings are valid.
-- Reject isolated surrogate code points and other non-UTF-8 representations before processing.
+- Python rejects isolated surrogate code points and other non-UTF-8 representations before processing.
+- Rust `str` is always valid UTF-8 and cannot contain an isolated surrogate. If an external format or decoder can represent lone surrogate escapes, reject them at that input-decoding boundary before creating a Rust `str`; report the equivalent invalid-Unicode category there.
 - Enforce `max_codepoints` and `max_utf8_bytes` before heavy analysis.
 - Raise equivalent typed error categories, without exposing password content.
 
@@ -60,7 +61,7 @@ Rust ownership concern: Rust slices and byte offsets are naturally explicit but 
 
 The versioned cross-language vectors in [tests/fixtures/rust_portability_vectors.json](../tests/fixtures/rust_portability_vectors.json) are consumed by the Python test suite and are intended to be reused by a future Rust implementation. Each process case declares an operation, a JSON string input, configuration, and either expected metadata plus processed text or an expected error category.
 
-The current vectors cover ASCII, empty strings, whitespace preservation, accented Latin, mixed scripts, emoji sequences, combining-mark normalization that changes text, NFC normalization that leaves text unchanged, code-point and UTF-8 limit failures, and invalid isolated-surrogate input. The fixture file documents its schema version and representation convention: ordinary JSON strings represent Unicode scalar sequences, while an escaped isolated surrogate is a deliberately invalid Python-input case and must map to `InvalidUnicodeError`.
+The current vectors cover ASCII, empty strings, whitespace preservation, accented Latin, mixed scripts, emoji sequences, combining-mark normalization that changes text, NFC normalization that leaves text unchanged, code-point and UTF-8 limit failures, and invalid isolated-surrogate input. JSON strings contain only Unicode scalar values. The invalid surrogate case is represented portably as an integer code-point array (`[55296]`, U+D800), which Python reconstructs for the rejection test. A Rust JSON runner must detect such surrogate values at decoding time and map them to the same invalid-Unicode category without trying to store them in `str`.
 
 Indexing vectors specify a source string, code-point-index-to-UTF-8-byte-offset boundaries, valid UTF-8-byte-offset-to-code-point results, offsets that split encoded code points, and half-open code-point spans with expected slices. These cases distinguish code points from grapheme clusters and can be evaluated without Python-specific test logic.
 
