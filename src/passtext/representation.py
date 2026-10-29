@@ -40,3 +40,6 @@ class PreparedPassword:
             "normalization": self.metadata.normalization,
             "normalization_changed": self.metadata.normalization_changed,
         }
+
+    def __reduce__(self) -> tuple[type[PreparedPassword], tuple[object, ...]]:
+        raise TypeError("PreparedPassword is intentionally not serializable")

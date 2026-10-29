@@ -23,12 +23,12 @@ class PassTextConfig:
     normalization: NormalizationMode = "none"
 
     def __post_init__(self) -> None:
-        if not isinstance(self.max_utf8_bytes, int):
+        if type(self.max_utf8_bytes) is not int:
             raise InvalidConfigurationError("max_utf8_bytes must be an integer")
         if self.max_utf8_bytes <= 0:
             raise InvalidConfigurationError("max_utf8_bytes must be greater than zero")
 
-        if not isinstance(self.max_codepoints, int):
+        if type(self.max_codepoints) is not int:
             raise InvalidConfigurationError("max_codepoints must be an integer")
         if self.max_codepoints <= 0:
             raise InvalidConfigurationError("max_codepoints must be greater than zero")

@@ -5,7 +5,6 @@ from __future__ import annotations
 from .config import PassTextConfig
 from .exceptions import (
     InvalidInputTypeError,
-    InvalidUnicodeError,
     ProcessingFailureError,
     ProcessingLimitError,
 )
@@ -24,17 +23,13 @@ def validate_password_input(password: object, config: PassTextConfig) -> str:
     if not isinstance(password, str):
         raise InvalidInputTypeError("password must be a str instance")
 
-    try:
-        validate_utf8_text(password)
-    except InvalidUnicodeError as exc:
-        raise InvalidUnicodeError("password contains invalid UTF-8 content") from exc
+    encoded = validate_utf8_text(password)
+    utf8_size = len(encoded)
 
     if len(password) > config.max_codepoints:
-        raise ProcessingLimitError(
-            "password exceeds configured maximum Unicode code-point count"
-        )
+        raise ProcessingLimitError("password exceeds configured maximum Unicode code-point count")
 
-    if utf8_byte_count(password) > config.max_utf8_bytes:
+    if utf8_size > config.max_utf8_bytes:
         raise ProcessingLimitError("password exceeds configured maximum UTF-8 byte count")
 
     return password
@@ -47,10 +42,10 @@ def build_metadata(original: str, processed: str, config: PassTextConfig) -> Tex
     processed_codepoints = codepoint_count(processed)
 
     try:
-        original_utf8_bytes = utf8_byte_count(original)
-        processed_utf8_bytes = utf8_byte_count(processed)
-    except UnicodeError as exc:
-        raise ProcessingFailureError("metadata calculation encountered invalid Unicode") from exc
+        original_utf8_bytes = len(validate_utf8_text(original))
+        processed_utf8_bytes = len(validate_utf8_text(processed))
+    except UnicodeError:
+        raise ProcessingFailureError("metadata calculation encountered invalid Unicode") from None
 
     return TextMetadata(
         original_codepoints=original_codepoints,
@@ -82,9 +77,7 @@ def process_password(password: object, config: PassTextConfig | None = None) -> 
             "processed password exceeds configured maximum Unicode code-point count"
         )
     if utf8_byte_count(processed) > config.max_utf8_bytes:
-        raise ProcessingLimitError(
-            "processed password exceeds configured maximum UTF-8 byte count"
-        )
+        raise ProcessingLimitError("processed password exceeds configured maximum UTF-8 byte count")
 
     metadata = build_metadata(validated, processed, config)
 

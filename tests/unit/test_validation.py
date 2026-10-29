@@ -62,6 +62,28 @@ def test_nfc_normalization_changes_processed_text():
     assert result.metadata.normalization_changed is True
 
 
+def test_unicode_error_does_not_expose_secret_data():
+    secret = "SECRETMARKER\ud800"
+    try:
+        process_password(secret, config=PassTextConfig())
+    except InvalidUnicodeError as exc:
+        payload = str(exc)
+        assert "SECRETMARKER" not in payload
+        assert "\ud800" not in repr(exc)
+        assert exc.__cause__ is None
+        assert exc.__context__ is None
+    else:
+        raise AssertionError("expected InvalidUnicodeError")
+
+
+def test_bool_values_are_rejected_as_config_integers():
+    with pytest.raises(InvalidConfigurationError):
+        PassTextConfig(max_codepoints=True)
+
+    with pytest.raises(InvalidConfigurationError):
+        PassTextConfig(max_utf8_bytes=False)
+
+
 def test_invalid_configuration_is_rejected():
     with pytest.raises(InvalidConfigurationError):
         PassTextConfig(max_codepoints=0)

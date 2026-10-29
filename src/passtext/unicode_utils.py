@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
-import unicodedata
-
 from .exceptions import InvalidUnicodeError
 
 
-def validate_utf8_text(value: str) -> None:
-    """Reject values that cannot be represented as legal UTF-8."""
+def validate_utf8_text(value: str) -> bytes:
+    """Reject values that cannot be represented as legal UTF-8.
+
+    Isolated surrogate code points are rejected before any encoding error is produced so the
+    validation path does not retain a password-bearing exception object in the call stack.
+    """
+
+    for ch in value:
+        codepoint = ord(ch)
+        if 0xD800 <= codepoint <= 0xDFFF:
+            raise InvalidUnicodeError("input contains unsupported surrogate code points")
 
     try:
-        value.encode("utf-8", errors="strict")
-    except UnicodeEncodeError as exc:  # pragma: no cover - defensive branch
-        raise InvalidUnicodeError("input cannot be encoded as valid UTF-8") from exc
+        return value.encode("utf-8", errors="strict")
+    except (
+        UnicodeEncodeError
+    ):  # pragma: no cover - Python strings only fail here for unsupported surrogates
+        raise InvalidUnicodeError("input cannot be encoded as valid UTF-8") from None
 
 
 def codepoint_count(value: str) -> int:
@@ -25,8 +34,7 @@ def codepoint_count(value: str) -> int:
 def utf8_byte_count(value: str) -> int:
     """Return the number of bytes produced by encoding to UTF-8."""
 
-    validate_utf8_text(value)
-    return len(value.encode("utf-8", errors="strict"))
+    return len(validate_utf8_text(value))
 
 
 def contains_non_ascii(value: str) -> bool:
@@ -36,10 +44,8 @@ def contains_non_ascii(value: str) -> bool:
 
 
 def normalize_for_config(value: str, normalization: str) -> str:
-    """Apply the configured normalization mode without altering the original."""
+    """Compatibility alias for the canonical normalization helper."""
 
-    if normalization == "none":
-        return value
-    if normalization == "nfc":
-        return unicodedata.normalize("NFC", value)
-    raise ValueError(f"unsupported normalization mode: {normalization}")
+    from .normalization import apply_normalization
+
+    return apply_normalization(value, normalization)

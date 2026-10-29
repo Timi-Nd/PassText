@@ -5,7 +5,12 @@ class PassTextError(Exception):
     """Base class for all PassText errors."""
 
     def __str__(self) -> str:
-        return self.__class__.__name__
+        return (
+            self.args[0] if self.args and isinstance(self.args[0], str) else self.__class__.__name__
+        )
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.__str__()!r})"
 
 
 class InvalidInputTypeError(PassTextError):
