@@ -1,0 +1,46 @@
+[
+  {
+    "name": "ascii_basic",
+    "input": "abc123",
+    "config": {
+      "max_utf8_bytes": 4096,
+      "max_codepoints": 1024,
+      "normalization": "none"
+    },
+    "expected": {
+      "original_codepoints": 6,
+      "original_utf8_bytes": 6,
+      "processed_codepoints": 6,
+      "processed_utf8_bytes": 6,
+      "normalization_changed": false,
+      "normalization": "none"
+    }
+  },
+  {
+    "name": "nfc_combining",
+    "input": "e\u0301",
+    "config": {
+      "max_utf8_bytes": 4096,
+      "max_codepoints": 1024,
+      "normalization": "nfc"
+    },
+    "expected": {
+      "original_codepoints": 2,
+      "original_utf8_bytes": 3,
+      "processed_codepoints": 1,
+      "processed_utf8_bytes": 2,
+      "normalization_changed": true,
+      "normalization": "nfc"
+    }
+  },
+  {
+    "name": "invalid_surrogate",
+    "input": "\ud800",
+    "config": {
+      "max_utf8_bytes": 4096,
+      "max_codepoints": 1024,
+      "normalization": "none"
+    },
+    "expected_error": "InvalidUnicodeError"
+  }
+]
