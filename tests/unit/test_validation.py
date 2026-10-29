@@ -1,3 +1,5 @@
+import dataclasses
+
 import pytest
 
 from passtext import (
@@ -93,3 +95,16 @@ def test_invalid_configuration_is_rejected():
 
     with pytest.raises(InvalidConfigurationError):
         PassTextConfig(normalization="bad")
+
+
+def test_codepoint_limit_is_checked_before_utf8_validation():
+    config = PassTextConfig(max_codepoints=1)
+    with pytest.raises(ProcessingLimitError, match="code-point count"):
+        process_password("a\ud800", config=config)
+
+
+def test_prepared_password_is_not_accidentally_dataclass_serializable():
+    result = process_password("P@ssw0rd!", config=PassTextConfig())
+
+    with pytest.raises(TypeError):
+        dataclasses.asdict(result)

@@ -36,7 +36,7 @@ pytest -q
 python benchmarks/benchmark_password_processing.py
 ```
 
-This script measures representative ASCII, Unicode, combining-mark, and near-limit workloads without inventing synthetic performance claims.
+This script measures representative ASCII, Unicode, combining-mark, and near-limit workloads without active tracing overhead during latency measurements. It records a machine-readable JSON payload in [benchmarks/output.txt](benchmarks/output.txt) alongside console output.
 
 ## Documentation
 

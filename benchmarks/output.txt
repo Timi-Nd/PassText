@@ -1,1 +1,41 @@
-PassText benchmark executed
+{
+  "platform": "win32",
+  "python_version": "3.14.6",
+  "workloads": {
+    "ascii_long": {
+      "average_seconds": 1.596374986547744e-05,
+      "median_seconds": 1.550000160932541e-05,
+      "p95_seconds": 1.610000617802143e-05,
+      "peak_memory_bytes": 432,
+      "throughput_per_second": 62641.92363490733
+    },
+    "ascii_short": {
+      "average_seconds": 3.2257501152344046e-06,
+      "median_seconds": 3.000008291564882e-06,
+      "p95_seconds": 3.3999967854470015e-06,
+      "peak_memory_bytes": 432,
+      "throughput_per_second": 310005.4140205257
+    },
+    "combining": {
+      "average_seconds": 2.8399999428074807e-06,
+      "median_seconds": 2.800006768666208e-06,
+      "p95_seconds": 3.0999945010989904e-06,
+      "peak_memory_bytes": 492,
+      "throughput_per_second": 352112.68314725754
+    },
+    "near_limit": {
+      "average_seconds": 1.9234749997849577e-05,
+      "median_seconds": 1.819999306462705e-05,
+      "p95_seconds": 1.889999839477241e-05,
+      "peak_memory_bytes": 1057,
+      "throughput_per_second": 51989.23823349921
+    },
+    "unicode_mixed": {
+      "average_seconds": 3.239000288886018e-06,
+      "median_seconds": 3.200009814463556e-06,
+      "p95_seconds": 3.4999975468963385e-06,
+      "peak_memory_bytes": 492,
+      "throughput_per_second": 308737.23705159896
+    }
+  }
+}

@@ -2,24 +2,41 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from .config import PassTextConfig
 from .metadata import TextMetadata
 
 
-@dataclass(frozen=True, slots=True)
 class PreparedPassword:
     """Internal representation exposing only safe metadata and controlled access.
 
-    Password contents are intentionally not printed by this object's repr().
+    Password contents are intentionally not printed by this object's repr(). The object is not a
+    dataclass so ordinary dataclass conversion cannot accidentally serialize the original or
+    processed password text.
     """
 
+    __slots__ = ("config", "metadata", "original_text", "processed_text")
+
+    config: PassTextConfig
+    metadata: TextMetadata
     original_text: str
     processed_text: str
-    metadata: TextMetadata
-    config: PassTextConfig
+
+    def __init__(
+        self,
+        original_text: str,
+        processed_text: str,
+        metadata: TextMetadata,
+        config: PassTextConfig,
+    ):
+        object.__setattr__(self, "original_text", original_text)
+        object.__setattr__(self, "processed_text", processed_text)
+        object.__setattr__(self, "metadata", metadata)
+        object.__setattr__(self, "config", config)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("PreparedPassword is immutable")
 
     def __repr__(self) -> str:
         return (
