@@ -1,6 +1,9 @@
 import dataclasses
+import unicodedata
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from passtext import (
     InvalidConfigurationError,
@@ -108,3 +111,32 @@ def test_prepared_password_is_not_accidentally_dataclass_serializable():
 
     with pytest.raises(TypeError):
         dataclasses.asdict(result)
+
+
+@given(
+    st.text(max_size=50).filter(lambda value: not any(0xD800 <= ord(ch) <= 0xDFFF for ch in value))
+)
+def test_property_metadata_matches_text_invariants(value: str):
+    config = PassTextConfig(normalization="nfc")
+    result = process_password(value, config=config)
+
+    assert result.metadata.original_codepoints == len(value)
+    assert result.metadata.processed_codepoints == len(result.processed_text)
+    assert result.metadata.original_utf8_bytes == len(value.encode("utf-8"))
+    assert result.metadata.processed_utf8_bytes == len(result.processed_text.encode("utf-8"))
+    assert result.metadata.normalization_changed == (result.processed_text != value)
+    assert result.metadata.contains_non_ascii == any(ord(ch) > 127 for ch in value)
+    assert result.processed_text == unicodedata.normalize("NFC", value)
+
+
+@given(
+    st.text(max_size=50).filter(lambda value: not any(0xD800 <= ord(ch) <= 0xDFFF for ch in value))
+)
+def test_property_repeated_calls_are_deterministic(value: str):
+    config = PassTextConfig(normalization="none")
+    first = process_password(value, config=config)
+    second = process_password(value, config=config)
+
+    assert first.metadata.as_dict() == second.metadata.as_dict()
+    assert first.processed_text == second.processed_text
+    assert first.original_text == second.original_text
