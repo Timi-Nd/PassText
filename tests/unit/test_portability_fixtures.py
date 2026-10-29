@@ -1,7 +1,20 @@
 import json
 from pathlib import Path
 
-from passtext import InvalidUnicodeError, PassTextConfig, process_password
+import pytest
+
+from passtext import (
+    InvalidUnicodeError,
+    PassTextConfig,
+    ProcessingLimitError,
+    process_password,
+)
+from passtext.indexing import (
+    TextSpan,
+    codepoint_index_for_utf8_offset,
+    slice_text,
+    utf8_offset_for_codepoint,
+)
 
 FIXTURE_PATH = Path(__file__).resolve().parent.parent / "fixtures" / "rust_portability_vectors.json"
 
@@ -11,24 +24,54 @@ def load_fixtures():
         return json.load(handle)
 
 
-def test_portability_fixture_file_is_valid_json_and_consistent():
+def test_process_and_error_vectors_match_the_portable_contract():
     fixtures = load_fixtures()
-    assert len(fixtures) >= 3
-    assert fixtures[0]["name"] == "ascii_basic"
+    error_types = {
+        "InvalidUnicodeError": InvalidUnicodeError,
+        "ProcessingLimitError": ProcessingLimitError,
+    }
 
-    result = process_password(fixtures[0]["input"], config=PassTextConfig(**fixtures[0]["config"]))
-    assert result.metadata.original_codepoints == fixtures[0]["expected"]["original_codepoints"]
-    assert result.metadata.processed_utf8_bytes == fixtures[0]["expected"]["processed_utf8_bytes"]
+    assert fixtures["schema_version"] == 1
+    assert "Unicode scalar" in fixtures["unicode_representation"]
 
-    nfc_result = process_password(
-        fixtures[1]["input"],
-        config=PassTextConfig(**fixtures[1]["config"]),
-    )
-    assert nfc_result.metadata.normalization_changed is True
-    assert nfc_result.processed_text == "é"
+    for vector in fixtures["cases"]:
+        config = PassTextConfig(**vector["config"])
+        if vector["operation"] == "process_error":
+            expected_error = error_types[vector["expected_error"]]
+            with pytest.raises(expected_error):
+                process_password(vector["input"], config=config)
+            continue
 
-    try:
-        process_password(fixtures[2]["input"], config=PassTextConfig(**fixtures[2]["config"]))
-    except InvalidUnicodeError:
-        return
-    raise AssertionError("expected InvalidUnicodeError from surrogate fixture")
+        assert vector["operation"] == "process"
+        result = process_password(vector["input"], config=config)
+        assert result.processed_text == vector["expected"]["processed_text"]
+        metadata = result.metadata.as_dict()
+        for key, expected_value in vector["expected"].items():
+            if key != "processed_text":
+                assert metadata[key] == expected_value, vector["name"]
+
+
+def test_indexing_vectors_match_codepoint_and_utf8_boundaries():
+    fixtures = load_fixtures()
+    assert fixtures["indexing"]
+
+    for vector in fixtures["indexing"]:
+        text = vector["text"]
+        byte_boundaries = vector["codepoint_to_utf8"]
+        codepoint_boundaries = vector["utf8_to_codepoint"]
+
+        assert len(byte_boundaries) == len(text) + 1
+        assert len(codepoint_boundaries) == len(byte_boundaries)
+        for codepoint_index, (byte_offset, expected_index) in enumerate(
+            zip(byte_boundaries, codepoint_boundaries, strict=True)
+        ):
+            assert utf8_offset_for_codepoint(text, codepoint_index) == byte_offset
+            assert codepoint_index_for_utf8_offset(text, byte_offset) == expected_index
+            assert expected_index == codepoint_index
+
+        for byte_offset in vector["invalid_utf8_offsets"]:
+            with pytest.raises(ValueError, match="UTF-8 offset"):
+                codepoint_index_for_utf8_offset(text, byte_offset)
+
+        for span in vector["spans"]:
+            assert slice_text(text, TextSpan(span["start"], span["end"])) == span["expected"]

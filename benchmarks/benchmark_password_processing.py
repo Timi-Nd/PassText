@@ -7,6 +7,8 @@ performance numbers reflect realistic processing cost rather than instrumentatio
 from __future__ import annotations
 
 import json
+import os
+import platform
 import statistics
 import sys
 import time
@@ -16,18 +18,21 @@ from pathlib import Path
 from passtext import PassTextConfig, process_password
 
 WORKLOADS = [
-    ("ascii_short", "P@ssw0rd!"),
-    ("ascii_long", "Tr0ub4dor&3" * 20),
-    ("unicode_mixed", "Hello世界🙂123"),
-    ("combining", "e\u0301e\u0301e\u0301"),
-    ("near_limit", "é" * 512),
+    ("ascii_short_none", "P@ssw0rd!", "none", "Short ASCII"),
+    ("ascii_long_none", "Tr0ub4dor&3" * 20, "none", "Long ASCII"),
+    ("accented_none", "café", "none", "Accented Latin"),
+    ("unicode_mixed_none", "Hello世界Γειά", "none", "Mixed scripts"),
+    ("emoji_none", "Hello🙂👩‍💻", "none", "Emoji and emoji sequence"),
+    ("combining_none", "e\u0301e\u0301e\u0301", "none", "Combining marks without normalization"),
+    ("combining_nfc", "e\u0301e\u0301e\u0301", "nfc", "NFC changes the input"),
+    ("ascii_nfc", "Example123!", "nfc", "NFC leaves the input unchanged"),
+    ("near_limit_none", "é" * 1023, "none", "One code point below the configured limit"),
 ]
 
 
 def benchmark_latency(
-    value: str, normalization: str, *, iterations: int = 400, warmup: int = 50
+    value: str, config: PassTextConfig, *, iterations: int = 400, warmup: int = 50
 ) -> list[float]:
-    config = PassTextConfig(max_utf8_bytes=4096, max_codepoints=1024, normalization=normalization)
     for _ in range(warmup):
         process_password(value, config=config)
 
@@ -39,13 +44,14 @@ def benchmark_latency(
     return timings
 
 
-def benchmark_memory(value: str, normalization: str, *, iterations: int = 250) -> int:
-    config = PassTextConfig(max_utf8_bytes=4096, max_codepoints=1024, normalization=normalization)
+def benchmark_memory(value: str, config: PassTextConfig, *, iterations: int = 250) -> int:
     tracemalloc.start()
-    for _ in range(iterations):
-        process_password(value, config=config)
-    _, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
+    try:
+        for _ in range(iterations):
+            process_password(value, config=config)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
     return peak
 
 
@@ -62,35 +68,72 @@ def summarize_timings(timings: list[float]) -> dict[str, float | int]:
     }
 
 
-def run_suite() -> dict[str, dict[str, float | int]]:
-    results: dict[str, dict[str, float | int]] = {}
-    for label, value in WORKLOADS:
-        latency = benchmark_latency(value, normalization="none")
-        peak_memory = benchmark_memory(value, normalization="none")
-        summary = summarize_timings(latency)
-        summary["peak_memory_bytes"] = peak_memory
-        results[label] = summary
-    return results
+def run_suite() -> dict[str, object]:
+    workloads: dict[str, object] = {}
+    for label, value, normalization, description in WORKLOADS:
+        config = PassTextConfig(
+            max_utf8_bytes=4096,
+            max_codepoints=1024,
+            normalization=normalization,
+        )
+        latency = benchmark_latency(value, config)
+        peak_memory = benchmark_memory(value, config)
+        workloads[label] = {
+            "description": description,
+            "input_codepoints": len(value),
+            "input_utf8_bytes": len(value.encode("utf-8")),
+            "normalization": normalization,
+            "configuration": {
+                "max_utf8_bytes": config.max_utf8_bytes,
+                "max_codepoints": config.max_codepoints,
+            },
+            "latency": summarize_timings(latency),
+            "memory": {
+                "iterations": 250,
+                "peak_traced_bytes": peak_memory,
+            },
+        }
+    return {
+        "methodology": {
+            "latency_iterations": 400,
+            "warmup_iterations": 50,
+            "memory_iterations": 250,
+            "memory_tracing_during_latency": False,
+        },
+        "workloads": workloads,
+    }
 
 
-def print_summary(results: dict[str, dict[str, float | int]]) -> None:
+def print_summary(results: dict[str, object]) -> None:
     print("PassText benchmark summary")
     print("=" * 28)
-    for label, metrics in results.items():
+    workloads = results["workloads"]
+    assert isinstance(workloads, dict)
+    for label, item in workloads.items():
+        assert isinstance(item, dict)
+        latency = item["latency"]
+        memory = item["memory"]
+        assert isinstance(latency, dict)
+        assert isinstance(memory, dict)
         print(
-            f"{label:>15}: median={metrics['median_seconds']:.8f}s "
-            f"p95={metrics['p95_seconds']:.8f}s avg={metrics['average_seconds']:.8f}s "
-            f"throughput={metrics['throughput_per_second']:.2f}/s peak_mem={metrics['peak_memory_bytes']} bytes"
+            f"{label:>22}: median={latency['median_seconds']:.8f}s "
+            f"p95={latency['p95_seconds']:.8f}s avg={latency['average_seconds']:.8f}s "
+            f"throughput={latency['throughput_per_second']:.2f}/s "
+            f"peak_traced={memory['peak_traced_bytes']} bytes"
         )
 
 
 if __name__ == "__main__":
-    suite = run_suite()
-    print_summary(suite)
+    result = run_suite()
+    print_summary(result)
     payload = {
+        "benchmark_version": 2,
         "python_version": sys.version.split()[0],
-        "platform": sys.platform,
-        "workloads": suite,
+        "platform": platform.platform(),
+        "system": platform.system(),
+        "processor": platform.processor(),
+        "cpu_count": os.cpu_count(),
+        **result,
     }
     output_path = Path("benchmarks/output.txt")
     output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")

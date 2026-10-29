@@ -58,14 +58,13 @@ Rust ownership concern: Rust slices and byte offsets are naturally explicit but 
 
 ## Portable fixture set
 
-The project includes cross-language vectors in [tests/fixtures/rust_portability_vectors.json](../tests/fixtures/rust_portability_vectors.json). These fixtures include:
+The versioned cross-language vectors in [tests/fixtures/rust_portability_vectors.json](../tests/fixtures/rust_portability_vectors.json) are consumed by the Python test suite and are intended to be reused by a future Rust implementation. Each process case declares an operation, a JSON string input, configuration, and either expected metadata plus processed text or an expected error category.
 
-- ASCII input
-- NFC combining-mark normalization
-- isolated surrogate rejection
-- expected counts and normalization results
+The current vectors cover ASCII, empty strings, whitespace preservation, accented Latin, mixed scripts, emoji sequences, combining-mark normalization that changes text, NFC normalization that leaves text unchanged, code-point and UTF-8 limit failures, and invalid isolated-surrogate input. The fixture file documents its schema version and representation convention: ordinary JSON strings represent Unicode scalar sequences, while an escaped isolated surrogate is a deliberately invalid Python-input case and must map to `InvalidUnicodeError`.
 
-These fixtures are intentionally free of real password secrets and are suitable for future Rust parity testing.
+Indexing vectors specify a source string, code-point-index-to-UTF-8-byte-offset boundaries, valid UTF-8-byte-offset-to-code-point results, offsets that split encoded code points, and half-open code-point spans with expected slices. These cases distinguish code points from grapheme clusters and can be evaluated without Python-specific test logic.
+
+All fixture values are synthetic and non-secret. Future cross-language runners should compare the declared output/error category and exact text/count values rather than relying on platform-specific exception messages.
 
 ## Required parity rules
 
